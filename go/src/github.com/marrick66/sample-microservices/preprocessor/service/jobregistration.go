@@ -8,6 +8,11 @@ import (
 	"google.golang.org/grpc"
 )
 
+//Instead of using REST/HTTP, I'm using gRPC over TCP for service calls. This is just to mix it up, but in production this wouldn't be exposed to external clients.
+//We'd need an API gateway to make it friendly and do things like TLS termination, authentication tokens, request throttling, etc. Load balancing is another element,
+//but it looks like it's handled differently between providers. For further authentication/authorization, we'd want to handle mediating the token in this service as well.
+//In a future phase, I'd integrate this in with an IDP (Google Auth is supported out of the box).
+
 //JobRegistrationServerImpl is the tcp listener and gRPC server implementation:
 type JobRegistrationServerImpl struct {
 	listener *net.Listener
