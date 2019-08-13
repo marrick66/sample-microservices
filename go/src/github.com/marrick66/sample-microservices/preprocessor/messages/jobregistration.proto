@@ -1,0 +1,40 @@
+//Sample RPC service for job registration:
+
+syntax = "proto3";
+
+package jobregistration;
+
+//The job registration service definition:
+service JobRegistration {
+    //Registers a job for execution.
+    rpc Register (RegistrationRequest) returns (RegistrationReply) {}
+    rpc GetRegistration (GetRegistrationRequest) returns (GetRegistrationReply) {}
+}
+
+//The registration request message:
+message RegistrationRequest {
+    string name = 1;
+}
+
+//The registration request reply message:
+message RegistrationReply {
+    int32 id = 1;
+}
+
+//The get registration request message:
+message GetRegistrationRequest {
+    int32 id = 1;
+}
+
+//The get registration reply message:
+message GetRegistrationReply {
+    int32 id = 1;
+    enum Status {
+        NOTFOUND = 0;
+        REGISTERED = 1;
+        RUNNING = 2;
+        FAILED = 3;
+        COMPLETED = 4;
+    }
+    Status status = 2;
+}

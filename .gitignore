@@ -1,0 +1,11 @@
+#Go specific
+pkg/
+*.exe
+golang/
+golang.org/
+google.golang.org/
+
+#.Net Core specific
+appsettings*.json
+bin/
+obj/

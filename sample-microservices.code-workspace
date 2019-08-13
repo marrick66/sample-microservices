@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "dotnetcore"
+		},
+		{
+			"path": "go"
+		}
+	],
+	"settings": {}
+}
