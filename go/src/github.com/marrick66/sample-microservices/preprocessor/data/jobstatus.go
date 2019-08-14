@@ -1,4 +1,4 @@
-package messages
+package data
 
 //JobStatus is the current state that the job is in.
 type JobStatus int

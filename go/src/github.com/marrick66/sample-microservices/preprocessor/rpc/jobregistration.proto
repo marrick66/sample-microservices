@@ -18,17 +18,17 @@ message RegistrationRequest {
 
 //The registration request reply message:
 message RegistrationReply {
-    int32 id = 1;
+    string id = 1;
 }
 
 //The get registration request message:
 message GetRegistrationRequest {
-    int32 id = 1;
+    string id = 1;
 }
 
 //The get registration reply message:
 message GetRegistrationReply {
-    int32 id = 1;
+    string id = 1;
     enum Status {
         NOTFOUND = 0;
         REGISTERED = 1;
