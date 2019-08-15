@@ -1,10 +1,10 @@
 package events
 
-import "go/types"
+import "reflect"
 
 //EventHandler is a generic interface that takes
 //some event and does whatever's required of it.
 type EventHandler interface {
-	ForType() types.Type
+	ForType() reflect.Type
 	Handle(event interface{}) error
 }

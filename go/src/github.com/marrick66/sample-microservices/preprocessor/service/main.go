@@ -1,9 +1,5 @@
 package main
 
-import (
-	"github.com/marrick66/sample-microservices/preprocessor/messagehandling"
-)
-
 /*
 This is a small prototype of an asynchronous job scheduler registration microservice, in which
 a dummy job is registered and stored locally for later execution. On successful registration,
@@ -15,10 +11,11 @@ simplicity.
 */
 
 func main() {
-	go messagehandling.HandleAsyncEvents()
+	srv, err := NewJobRegistrationServer(":8001")
 
-	srv := NewJobRegistrationServer(":8001")
-	err := srv.Start()
+	if err == nil {
+		err = srv.Start()
+	}
 
 	if err != nil {
 		panic("Unable to start RPC server.")

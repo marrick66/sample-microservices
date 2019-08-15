@@ -9,7 +9,10 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            "env": { "GOPATH": "${workspaceFolder}/go/", "JOBS_DB": "mongodb://mongoadmin:secret@localhost:27017"},
+            "env": { 
+                "GOPATH": "${workspaceFolder}/go/", 
+                "JOBS_DB": "mongodb://mongoadmin:secret@localhost:27017",
+                "EVENT_BUS": "amqp://guest:guest@localhost:5672"},
             "cwd": "${workspaceFolder}/go/",
             "program": "${workspaceFolder}/go/src/github.com/marrick66/sample-microservices/preprocessor/service/main.go",
         },
