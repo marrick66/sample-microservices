@@ -23,7 +23,7 @@ type JobRegistrationServerImpl struct {
 	listener *net.Listener
 	rpcSrv   *grpc.Server
 	port     string
-	repo     *storage.MongoDbRepository
+	repo     *storage.JobRegistrationRepository
 }
 
 //Register is the actual implementation of the respective RPC call to register a job.
@@ -64,7 +64,8 @@ func (srv *JobRegistrationServerImpl) GetRegistration(ctx context.Context, reque
 	}
 
 	//Since the type enum for status and the RPC are different, need
-	//to map them here. There's probably a better way to do this...
+	//to map them here. There's probably a better way to do this, need
+	//to research protobuf more...
 	var status rpc.GetRegistrationReply_Status
 	switch registration.Status {
 	case data.Registered:
@@ -92,7 +93,7 @@ func NewJobRegistrationServer(port string) *JobRegistrationServerImpl {
 		port:     port,
 		rpcSrv:   grpc.NewServer()}
 
-	repo, err := storage.NewMongoDbRepository(os.Getenv("JOBS_DB"))
+	repo, err := storage.NewJobRegistrationRepository(os.Getenv("JOBS_DB"))
 	if err != nil {
 		panic(err)
 	}

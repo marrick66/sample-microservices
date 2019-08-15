@@ -12,9 +12,3 @@ const (
 	Completed
 )
 
-//JobStatusEvent is the message that should be received on the bus that
-//states the final state of the job.
-type JobStatusEvent struct {
-	ID     int
-	Status JobStatus
-}

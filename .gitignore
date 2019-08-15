@@ -9,3 +9,6 @@ google.golang.org/
 appsettings*.json
 bin/
 obj/
+
+#VSCode specific
+launch*.json
