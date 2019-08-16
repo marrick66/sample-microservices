@@ -15,7 +15,8 @@ namespace postprocessing.Models {
 
     //The POCO entity that represents a single job.
     public class Job {
-        public int Id { get; set; }
+        public string Id { get; set; }
+        public string Name{ get; set; }
         public JobStatus Status{ get; set; }
     }
 }

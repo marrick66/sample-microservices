@@ -11,4 +11,4 @@ bin/
 obj/
 
 #VSCode specific
-launch*.json
+launch.json

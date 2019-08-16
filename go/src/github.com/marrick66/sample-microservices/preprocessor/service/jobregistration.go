@@ -48,7 +48,8 @@ func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *rpc
 		if err == nil {
 			go func() {
 				srv.eventCrdnr.EventChannel <- events.JobRegisteredEvent{
-					ID: rawID}
+					ID: rawID,
+					Name: request.Name}
 			}()
 		}
 

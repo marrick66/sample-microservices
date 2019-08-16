@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using postprocessing.Models;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -14,21 +14,26 @@ namespace postprocessing.Controllers
     [Route("api/[controller]")]
     public class JobsController : ControllerBase
     {
+        private IRepository<Job> _repository;
+        private ILogger _logger;
+        
+        public JobsController(IRepository<Job> Repository, ILogger<JobsController> Logger)
+        {
+            _repository = Repository ??
+                throw new ArgumentNullException(nameof(Repository));
+            _logger = Logger ??
+                throw new ArgumentNullException(nameof(Logger));
+        }
+
         [HttpGet]
         [SwaggerOperation(
         Summary = "Gets the status of all jobs.",
-        Description = "Currently returning static data on two dummy jobs.",
+        Description = "Returns the status of all jobs in the database.",
         OperationId = "GetAllJobs" )]
         [SwaggerResponse(200, "The all jobs were returned.", typeof(Job[]))]
-        public Task<Job[]> Get()
+        public Task<IEnumerable<Job>> Get()
         {
-            //For the initial spike, just return a static set of data.
-            return Task.FromResult(
-                new Job[] 
-                { 
-                    new Job { Id = 1, Status = JobStatus.Registered }, 
-                    new Job { Id = 2, Status = JobStatus.Completed }, 
-                });
+            return _repository.GetAll();
         }
         
     }

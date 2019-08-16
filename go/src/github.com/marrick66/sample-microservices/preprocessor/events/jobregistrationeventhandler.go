@@ -2,6 +2,7 @@ package events
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
 
 	"github.com/streadway/amqp"
@@ -9,6 +10,8 @@ import (
 
 //JobRegistrationEventHandler is the designated handler for JobRegistered events.
 type JobRegistrationEventHandler struct {
+	exchange         string
+	topic            string
 	connectionString string
 	contentType      string
 }
@@ -17,7 +20,9 @@ type JobRegistrationEventHandler struct {
 func NewJobRegistrationEventHandler(connectionString string) (*JobRegistrationEventHandler, error) {
 	return &JobRegistrationEventHandler{
 		connectionString: connectionString,
-		contentType:      "application/json"}, nil
+		contentType:      "application/json",
+		exchange:         os.Getenv("EXCHANGE"),
+		topic:            os.Getenv("TOPIC")}, nil
 }
 
 //ForType returns the reflection type of the event that the handler
@@ -44,8 +49,8 @@ func (handler *JobRegistrationEventHandler) Handle(event interface{}) error {
 
 			if err == nil {
 				err = channel.Publish(
-					"jobevents",
-					"jobevents.jobregistered",
+					handler.exchange,
+					handler.topic,
 					false,
 					false,
 					amqp.Publishing{
