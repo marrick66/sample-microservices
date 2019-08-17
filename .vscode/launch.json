@@ -14,7 +14,8 @@
                 "JOBS_DB": "mongodb://mongoadmin:secret@localhost:27017",
                 "EVENT_BUS": "amqp://guest:guest@localhost:5672",
                 "EXCHANGE": "jobs",
-                "TOPIC": "jobevents.jobregistered"},
+                "REGISTERED_TOPIC": "jobevents.jobregistered",
+                "STATUS_TOPIC": "jobevents.statusupdate"},
             "cwd": "${workspaceFolder}/go/",
             "program": "${workspaceFolder}/go/src/github.com/marrick66/sample-microservices/preprocessor/service/main.go"
         },

@@ -11,18 +11,21 @@ namespace postprocessing.EventHandling
     //and send status events back on the event bus.
     public class JobRegisteredEventHandler : IEventHandler<JobRegistered>
     {
+        private IEventBus _bus;
         private IRepository<Job> _repository;
         private ILogger _logger;
 
-        public JobRegisteredEventHandler(IRepository<Job> Repository, ILogger<JobRegisteredEventHandler> Logger)
+        public JobRegisteredEventHandler(IEventBus Bus, IRepository<Job> Repository, ILogger<JobRegisteredEventHandler> Logger)
         {
+            _bus = Bus ??
+                throw new ArgumentNullException(nameof(Bus));
             _repository = Repository ??
                 throw new ArgumentNullException(nameof(Repository));
             _logger = Logger ??
                 throw new ArgumentNullException(nameof(Logger));
         }
 
-        public string Topic => "jobevents.*";
+        public string Topic => "jobevents.jobregistered";
 
         public string QueueName => "jobRegisteredQueue";
 
@@ -42,7 +45,20 @@ namespace postprocessing.EventHandling
            catch(Exception ex)
            {
                _logger.LogError(ex, "Unable to store registered job {Event}", Event);
+               return;
            }
+
+            //Fake some kind of processing before sending back the status event.
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            try
+            {
+                await _bus.Publish(new JobStatusUpdate { ID = Event.Id, Status = JobStatus.Completed });
+                await _repository.Set(new Job{ Id = Event.Id, Status = JobStatus.Completed});
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Unable to send status update for {Event}.", Event);
+            }
         }
     }
 }

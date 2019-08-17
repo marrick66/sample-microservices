@@ -1,6 +1,7 @@
 #Go specific
 pkg/
 *.exe
+go.mongodb/
 golang/
 golang.org/
 google.golang.org/

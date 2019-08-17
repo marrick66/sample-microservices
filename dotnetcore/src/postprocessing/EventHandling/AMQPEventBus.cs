@@ -73,7 +73,7 @@ namespace postprocessing.EventHandling
             _channel.QueueBind(Handler.QueueName, _exchange, Handler.Topic, null);
         
             var consumer = new AsyncHandlerConsumer<T>(_channel, Handler, _logger);
-            var tag =_channel.BasicConsume(consumer, Handler.QueueName, false, exclusive: true);
+            var tag =_channel.BasicConsume(consumer, Handler.QueueName, true, exclusive: true);
 
             _knownTopicConsumers[topic].Add(consumer);
         }

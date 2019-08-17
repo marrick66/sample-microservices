@@ -35,10 +35,6 @@ namespace postprocessing.EventHandling
             {
                 _logger.LogError(ex, "Error handling received message.");
             }
-            finally
-            {
-                Model.BasicAck(deliveryTag, false);
-            }
         }
     }
 }
