@@ -114,7 +114,7 @@ func (bus *AMQPEventBus) listenForEvents(deliveryChan <-chan amqp.Delivery, hand
 	for {
 		message := <-deliveryChan
 
-		var event interface{}
+		event := handler.DefaultEvent()
 		err := json.Unmarshal(message.Body, event)
 
 		if err == nil {

@@ -69,7 +69,7 @@ func (repo *JobRegistrationRepository) Get(id string) (*data.JobRegistration, er
 		return nil, err
 	}
 
-	filter := bson.D{{"_id", docid}}
+	filter := bson.M{"_id": docid}
 	context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
 	defer cancel()
 
@@ -146,11 +146,12 @@ func (repo *JobRegistrationRepository) insertNew(registration *data.JobRegistrat
 //updateExisting is a helper method that wraps all the boilerplate of the client when updating a registration.
 func (repo *JobRegistrationRepository) updateExisting(registration *data.JobRegistration) (string, error) {
 
-	filter := bson.D{{"_id", registration.ID}}
+	filter := bson.M{"_id": registration.ID}
+	updateDoc := bson.M{"$set": bson.M{"status": registration.Status}}
 	context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
 	defer cancel()
 
-	_, err := repo.jobRegistrationCollection.UpdateOne(context, filter, registration, nil)
+	_, err := repo.jobRegistrationCollection.UpdateOne(context, filter, updateDoc, nil)
 
 	if err != nil {
 		return "", err

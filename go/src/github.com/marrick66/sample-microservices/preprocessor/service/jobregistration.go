@@ -105,7 +105,7 @@ func NewJobRegistrationServer(port string) (*JobRegistrationServerImpl, error) {
 		listener: nil,
 		port:     port,
 		rpcSrv:   grpc.NewServer(),
-		topic:    os.Getenv("TOPIC")}
+		topic:    os.Getenv("REGISTERED_TOPIC")}
 
 	repo, err := storage.NewJobRegistrationRepository(os.Getenv("JOBS_DB"))
 	if err == nil {

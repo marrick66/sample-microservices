@@ -1,5 +1,11 @@
 package main
 
+import (
+	"os"
+
+	"github.com/marrick66/sample-microservices/preprocessor/events"
+)
+
 /*
 This is a small prototype of an asynchronous job scheduler registration microservice, in which
 a dummy job is registered and stored locally for later execution. On successful registration,
@@ -14,9 +20,13 @@ func main() {
 	srv, err := NewJobRegistrationServer(":8001")
 
 	if err == nil {
-		err = srv.Start()
-	}
+		handler, err := events.NewJobStatusEventHandler(srv.repo)
 
+		if err == nil {
+			err = srv.bus.Subscribe(os.Getenv("STATUS_TOPIC"), handler)
+		}
+	}
+	err = srv.Start()
 	if err != nil {
 		panic("Unable to start RPC server.")
 	}
