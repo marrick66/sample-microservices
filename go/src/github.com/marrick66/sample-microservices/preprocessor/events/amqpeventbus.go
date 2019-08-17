@@ -48,7 +48,9 @@ func (bus *AMQPEventBus) initChannel() error {
 	return nil
 }
 
-//Publish sends a message to the bus for a topic.
+//Publish sends a message to the bus for a topic. For the RabbitMQ implementation,
+//the jobs exchange already exists on the development box, so there's no need to 
+//declare it here.
 func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
 
 	var err error
@@ -62,6 +64,9 @@ func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
 
 	body, err := json.Marshal(message)
 
+	//According to the client documentation, this is
+	//asynchronous, so no need to run it as a goroutine. Should
+	//profile it to be sure, though.
 	if err == nil {
 		err = bus.channel.Publish(
 			bus.exchange,
@@ -80,7 +85,9 @@ func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
 	return nil
 }
 
-//Subscribe assigns a topic to an event handler, and starts its event loop.
+//Subscribe assigns a topic to an ephemeral queue assigned to an event handler, then starts the event loop 
+//to handle incoming messages. There's a design flaw here that needs to be dealt with. If the channel/connection closes, 
+//all subscriptions are lost. So, there needs to be a way to kill all the listenForEvents goroutines, and resubscribe existing handlers.
 func (bus *AMQPEventBus) Subscribe(topic string, handler EventHandler) error {
 
 	var err error
@@ -105,15 +112,17 @@ func (bus *AMQPEventBus) Subscribe(topic string, handler EventHandler) error {
 		return err
 	}
 
-	go bus.listenForEvents(deliveryChan, handler)
+	go listenForEvents(deliveryChan, handler)
 	return nil
 }
 
 //listenForEvents is a handler specific event loop that waits for subscribed topic messages to arrive.
-func (bus *AMQPEventBus) listenForEvents(deliveryChan <-chan amqp.Delivery, handler EventHandler) {
+func listenForEvents(deliveryChan <-chan amqp.Delivery, handler EventHandler) {
 	for {
 		message := <-deliveryChan
 
+		//Unmarshalling needs a typed implementation to be able to 
+		//deserialize to, which is handler specific.
 		event := handler.DefaultEvent()
 		err := json.Unmarshal(message.Body, event)
 

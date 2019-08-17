@@ -29,6 +29,8 @@ namespace postprocessing.EventHandling
 
         public string QueueName => "jobRegisteredQueue";
 
+        //When the registered event is received, we add it to the local repository,
+        //then do some fake processing and send the status back to the event bus.
         public async Task HandleAsync(JobRegistered Event)
         {
             _logger.LogInformation("Received event {Event}.", Event);
@@ -49,7 +51,14 @@ namespace postprocessing.EventHandling
            }
 
             //Fake some kind of processing before sending back the status event.
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await MockProcessingAndEventSending(Event, 5);
+        }
+
+        //As a mock of some asynchronous job processing, we just delay for some seconds,
+        //update the local repository, and send a JobStatus event back to the bus.
+        private async Task MockProcessingAndEventSending(JobRegistered Event, int DelaySeconds)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(DelaySeconds));
             try
             {
                 await _bus.Publish(new JobStatusUpdate { ID = Event.Id, Status = JobStatus.Completed });

@@ -23,6 +23,7 @@ namespace postprocessing.EventHandling
                 throw new ArgumentNullException(nameof(Logger));
         }
 
+        //Override the default behavior to forward the deserialized event to the handler.
         public override async Task HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered, string exchange, string routingKey, IBasicProperties properties, byte[] body)
         {
             try

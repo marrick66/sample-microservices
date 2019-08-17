@@ -1,0 +1,8 @@
+version: '2.1'
+
+services:
+  go:
+    image: jobregistration-api
+    build: .
+    ports:
+      - 8001:8001

@@ -1,0 +1,8 @@
+version: '3.4'
+
+services:
+  mvc:
+    image: jobscheduling-api
+    build: ./src/postprocessing
+    ports:
+      - "5001:5001"
