@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Converters;
 using postprocessing.EventHandling;
+using postprocessing.Events;
 using postprocessing.Models;
 using Swashbuckle.AspNetCore.Swagger;
 
@@ -27,7 +28,6 @@ namespace postprocessing
         }
 
         public IConfiguration Configuration { get; }
-        public IEventBus EventBus => _bus;
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
@@ -54,6 +54,9 @@ namespace postprocessing
             
             //Add the custom event bus configuration:
             services.AddEventBus();
+
+            //Setup background event processing:
+            services.AddHostedService<EventHandlingService<JobRegistered>>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -73,8 +76,6 @@ namespace postprocessing
             app.UseSwagger();
             app.UseSwaggerUI(opt => opt.SwaggerEndpoint("/swagger/v1/swagger.json", "Job Scheduler API"));
             app.UseMvc();
-            app.UseEventBus(out _bus);
-
         }
     }
 }

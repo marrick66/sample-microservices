@@ -14,6 +14,8 @@ namespace postprocessing.EventHandling
         private IEventHandler<T> _handler;
         private ILogger _logger;
 
+        public string QueueName { get; private set; }
+
         public AsyncHandlerConsumer(IModel Model, IEventHandler<T> Handler, ILogger Logger)
             : base(Model)
         {
@@ -21,6 +23,8 @@ namespace postprocessing.EventHandling
                 throw new ArgumentNullException(nameof(Handler));
             _logger = Logger ??
                 throw new ArgumentNullException(nameof(Logger));
+
+            QueueName = Handler.QueueName;
         }
 
         //Override the default behavior to forward the deserialized event to the handler.

@@ -6,5 +6,6 @@ namespace postprocessing.EventHandling
     {
         Task Publish(IEvent Event);
         Task Subscribe<T>(IEventHandler<T> Handler) where T: IEvent;
+        Task Unubscribe<T>(IEventHandler<T> Handler) where T: IEvent;
     }
 }

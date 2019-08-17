@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +19,8 @@ namespace postprocessing.EventHandling
         private IModel _channel;
         private IConfigurationSection _config;
         private ILogger _logger;
-        private IDictionary<string, List<IAsyncBasicConsumer>> _knownTopicConsumers;
+        private IDictionary<string, IAsyncBasicConsumer> _knownConsumers;
+        private IDictionary<object, string> _consumerTags;
         private string _exchange;
         
         public AMQPEventBus(IConfiguration Configuration, ILogger<AMQPEventBus> Logger)
@@ -34,7 +36,8 @@ namespace postprocessing.EventHandling
             if(!_config.Exists())
                 throw new InvalidOperationException("AMQP configuration was not found");
 
-            _knownTopicConsumers = new Dictionary<string, List<IAsyncBasicConsumer>>();
+            _knownConsumers = new Dictionary<string, IAsyncBasicConsumer>();
+            _consumerTags = new Dictionary<object, string>();
         }
 
         //Sends a message to the shared exchange with a particular topic. If any
@@ -65,17 +68,34 @@ namespace postprocessing.EventHandling
             if(_channel == null || !_channel.IsOpen)
                 await InitConnection();
 
-            var topic = Handler.Topic.ToLower();
-            if(!_knownTopicConsumers.ContainsKey(topic))
-                _knownTopicConsumers[topic] = new List<IAsyncBasicConsumer>();
+            if(!_consumerTags.ContainsKey(Handler))
+            {
+                _channel.QueueDeclare(Handler.QueueName, true, true, true);
+                _channel.QueueBind(Handler.QueueName, _exchange, Handler.Topic, null);
+            
+                var consumer = new AsyncHandlerConsumer<T>(_channel, Handler, _logger);
+                var tag =_channel.BasicConsume(consumer, Handler.QueueName, true, exclusive: true);
 
-            _channel.QueueDeclare(Handler.QueueName, true, true, true);
-            _channel.QueueBind(Handler.QueueName, _exchange, Handler.Topic, null);
-        
-            var consumer = new AsyncHandlerConsumer<T>(_channel, Handler, _logger);
-            var tag =_channel.BasicConsume(consumer, Handler.QueueName, true, exclusive: true);
+                _consumerTags[Handler] = tag;
+                _knownConsumers[tag] = consumer;
+            }
+        }
 
-            _knownTopicConsumers[topic].Add(consumer);
+        //Cancels the subscription on the channel and removes all local
+        //data, if it exists.
+        public Task Unubscribe<T>(IEventHandler<T> Handler) where T : IEvent
+        {
+            if(_consumerTags.ContainsKey(Handler))
+            {
+                var tag = _consumerTags[Handler];
+                _consumerTags.Remove(Handler);
+                _channel.BasicCancel(tag);
+
+                if(_knownConsumers.ContainsKey(tag))
+                    _knownConsumers.Remove(tag);
+            }
+
+            return Task.CompletedTask;
         }
 
         private async Task InitConnection()

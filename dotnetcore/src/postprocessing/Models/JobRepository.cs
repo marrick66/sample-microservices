@@ -37,7 +37,7 @@ namespace postprocessing.Models
             {
                 await conn.ExecuteAsync(
                     @"IF EXISTS(SELECT Id FROM JobStatus WHERE Id = @Id) 
-                        UPDATE JobStatus SET Name = @Name, Status = @Status WHERE @Id = @Id
+                        UPDATE JobStatus SET Status = @Status WHERE @Id = @Id
                     ELSE
                         INSERT INTO JobStatus(Id, Name, Status) VALUES(@Id, @Name, @Status)",
                         new { Obj.Id, Obj.Name, Obj.Status});
