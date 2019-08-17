@@ -23,11 +23,12 @@ import (
 
 //JobRegistrationServerImpl is the tcp listener and gRPC server implementation:
 type JobRegistrationServerImpl struct {
-	listener   *net.Listener
-	rpcSrv     *grpc.Server
-	port       string
-	repo       *storage.JobRegistrationRepository
-	eventCrdnr *events.JobEventCoordinator
+	listener *net.Listener
+	rpcSrv   *grpc.Server
+	port     string
+	repo     storage.JobRegistrationStore
+	bus      events.EventBus
+	topic    string
 }
 
 //Register is the actual implementation of the respective RPC call to register a job.
@@ -46,11 +47,7 @@ func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *rpc
 		//that the channel blocks, so a lot of goroutines could exist here.
 		rawID, err := primitive.ObjectIDFromHex(id)
 		if err == nil {
-			go func() {
-				srv.eventCrdnr.EventChannel <- events.JobRegisteredEvent{
-					ID: rawID,
-					Name: request.Name}
-			}()
+			go srv.bus.Publish(srv.topic, events.JobRegisteredEvent{ID: rawID, Name: request.Name})
 		}
 
 		return &rpc.RegistrationReply{Id: id}, nil
@@ -107,19 +104,17 @@ func NewJobRegistrationServer(port string) (*JobRegistrationServerImpl, error) {
 	srv := JobRegistrationServerImpl{
 		listener: nil,
 		port:     port,
-		rpcSrv:   grpc.NewServer()}
+		rpcSrv:   grpc.NewServer(),
+		topic:    os.Getenv("TOPIC")}
 
 	repo, err := storage.NewJobRegistrationRepository(os.Getenv("JOBS_DB"))
 	if err == nil {
 		srv.repo = repo
 		rpc.RegisterJobRegistrationServer(srv.rpcSrv, &srv)
 
-		handler, err := events.NewJobRegistrationEventHandler(os.Getenv("EVENT_BUS"))
-
 		if err == nil {
-			srv.eventCrdnr = events.NewJobEventCoordinator(handler)
+			srv.bus, err = events.NewAMQPEventBus()
 		}
-
 	}
 
 	if err != nil {
@@ -139,9 +134,6 @@ func (srv *JobRegistrationServerImpl) Start() error {
 
 		srv.listener = &listener
 	}
-
-	//Serve blocks, so start the coordinator here...
-	srv.eventCrdnr.Run()
 
 	if err := srv.rpcSrv.Serve(*srv.listener); err != nil {
 		return err

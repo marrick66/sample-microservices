@@ -54,6 +54,11 @@ func (repo *JobRegistrationRepository) Connect() error {
 	return nil
 }
 
+//Disconnect passes the disconnect call through to the client.
+func (repo *JobRegistrationRepository) Disconnect() error {
+	return repo.client.Disconnect(context.Background())
+}
+
 //Get attempts to retrieve the job document by the Id field.
 func (repo *JobRegistrationRepository) Get(id string) (*data.JobRegistration, error) {
 
