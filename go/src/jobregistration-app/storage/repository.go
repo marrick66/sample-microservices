@@ -1,6 +1,6 @@
 package storage
 
-import "github.com/marrick66/sample-microservices/preprocessor/data"
+import "jobregistration-app/data"
 
 //JobRegistrationStore is a generic interface for reading
 //and writing the struct from/to a distributed key/value store.

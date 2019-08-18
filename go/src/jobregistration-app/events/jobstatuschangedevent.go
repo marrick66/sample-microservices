@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/marrick66/sample-microservices/preprocessor/data"
+	"jobregistration-app/data"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

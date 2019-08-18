@@ -1,4 +1,4 @@
-package main
+package rpc
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"github.com/marrick66/sample-microservices/preprocessor/data"
-	"github.com/marrick66/sample-microservices/preprocessor/events"
-	"github.com/marrick66/sample-microservices/preprocessor/rpc"
-	"github.com/marrick66/sample-microservices/preprocessor/storage"
+	"jobregistration-app/data"
+	"jobregistration-app/events"
+	"jobregistration-app/storage"
+
 	"google.golang.org/grpc"
 )
 
@@ -26,20 +26,20 @@ type JobRegistrationServerImpl struct {
 	listener *net.Listener
 	rpcSrv   *grpc.Server
 	port     string
-	repo     storage.JobRegistrationStore
-	bus      events.EventBus
+	Repo     storage.JobRegistrationStore
+	Bus      events.EventBus
 	topic    string
 }
 
 //Register is the actual implementation of the respective RPC call to register a job.
-func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *rpc.RegistrationRequest) (*rpc.RegistrationReply, error) {
-	if !srv.repo.IsUp() {
-		if err := srv.repo.Connect(); err != nil {
+func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *RegistrationRequest) (*RegistrationReply, error) {
+	if !srv.Repo.IsUp() {
+		if err := srv.Repo.Connect(); err != nil {
 			return nil, err
 		}
 	}
 
-	id, err := srv.repo.Set(
+	id, err := srv.Repo.Set(
 		&data.JobRegistration{Name: request.Name, Status: data.Registered})
 
 	if err == nil {
@@ -47,10 +47,10 @@ func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *rpc
 		//that the channel blocks, so a lot of goroutines could exist here.
 		rawID, err := primitive.ObjectIDFromHex(id)
 		if err == nil {
-			go srv.bus.Publish(srv.topic, events.JobRegisteredEvent{ID: rawID, Name: request.Name})
+			go srv.Bus.Publish(srv.topic, events.JobRegisteredEvent{ID: rawID, Name: request.Name})
 		}
 
-		return &rpc.RegistrationReply{Id: id}, nil
+		return &RegistrationReply{Id: id}, nil
 	}
 
 	return nil, err
@@ -58,19 +58,19 @@ func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *rpc
 }
 
 //GetRegistration is the actual implementation of the respective RPC call to get a registered job.
-func (srv *JobRegistrationServerImpl) GetRegistration(ctx context.Context, request *rpc.GetRegistrationRequest) (*rpc.GetRegistrationReply, error) {
-	if !srv.repo.IsUp() {
-		if err := srv.repo.Connect(); err != nil {
+func (srv *JobRegistrationServerImpl) GetRegistration(ctx context.Context, request *GetRegistrationRequest) (*GetRegistrationReply, error) {
+	if !srv.Repo.IsUp() {
+		if err := srv.Repo.Connect(); err != nil {
 			return nil, err
 		}
 	}
 
 	//Query mongoDb for the document, if ErrNoDocuments is returned,
 	//send the custom not found reply back.
-	registration, err := srv.repo.Get(request.Id)
+	registration, err := srv.Repo.Get(request.Id)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return &rpc.GetRegistrationReply{Id: "", Status: rpc.GetRegistrationReply_NOTFOUND}, nil
+			return &GetRegistrationReply{Id: "", Status: GetRegistrationReply_NOTFOUND}, nil
 		}
 
 		return nil, err
@@ -79,24 +79,24 @@ func (srv *JobRegistrationServerImpl) GetRegistration(ctx context.Context, reque
 	//Since the type enum for status and the RPC are different, need
 	//to map them here. There's probably a better way to do this, need
 	//to research protobuf more...
-	var status rpc.GetRegistrationReply_Status
+	var status GetRegistrationReply_Status
 	switch registration.Status {
 	case data.Registered:
-		status = rpc.GetRegistrationReply_REGISTERED
+		status = GetRegistrationReply_REGISTERED
 		break
 	case data.Running:
-		status = rpc.GetRegistrationReply_RUNNING
+		status = GetRegistrationReply_RUNNING
 		break
 	case data.Completed:
-		status = rpc.GetRegistrationReply_COMPLETED
+		status = GetRegistrationReply_COMPLETED
 		break
 	case data.Failed:
-		status = rpc.GetRegistrationReply_FAILED
+		status = GetRegistrationReply_FAILED
 	}
 
 	id := registration.ID.Hex()
 
-	return &rpc.GetRegistrationReply{Id: id, Status: status}, nil
+	return &GetRegistrationReply{Id: id, Status: status}, nil
 }
 
 //NewJobRegistrationServer creates the server object and gRPC dependencies.
@@ -107,19 +107,21 @@ func NewJobRegistrationServer(port string) (*JobRegistrationServerImpl, error) {
 		rpcSrv:   grpc.NewServer(),
 		topic:    os.Getenv("REGISTERED_TOPIC")}
 
-	repo, err := storage.NewJobRegistrationRepository(os.Getenv("JOBS_DB"))
-	if err == nil {
-		srv.repo = repo
-		rpc.RegisterJobRegistrationServer(srv.rpcSrv, &srv)
+	var repo storage.JobRegistrationStore
+	var bus events.EventBus
+	var err error
 
-		if err == nil {
-			srv.bus, err = events.NewAMQPEventBus()
-		}
-	}
-
-	if err != nil {
+	if repo, err = storage.NewJobRegistrationRepository(os.Getenv("JOBS_DB")); err != nil {
 		return nil, err
 	}
+
+	srv.Repo = repo
+	if bus, err = events.NewAMQPEventBus(); err != nil {
+		return nil, err
+	}
+
+	srv.Bus = bus
+	RegisterJobRegistrationServer(srv.rpcSrv, &srv)
 
 	return &srv, nil
 }

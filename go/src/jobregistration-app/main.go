@@ -1,9 +1,9 @@
 package main
 
 import (
+	"jobregistration-app/events"
+	"jobregistration-app/rpc"
 	"os"
-
-	"github.com/marrick66/sample-microservices/preprocessor/events"
 )
 
 /*
@@ -17,18 +17,28 @@ simplicity.
 */
 
 func main() {
-	srv, err := NewJobRegistrationServer(":8001")
+	var srv *rpc.JobRegistrationServerImpl
+	var handler events.EventHandler
+	var err error
 
-	if err == nil {
-		handler, err := events.NewJobStatusEventHandler(srv.repo)
-
-		if err == nil {
-			err = srv.bus.Subscribe(os.Getenv("STATUS_TOPIC"), handler)
-		}
+	//Get the RPC server instance:
+	if srv, err = rpc.NewJobRegistrationServer(":8001"); err != nil {
+		panic(err)
 	}
-	err = srv.Start()
-	if err != nil {
-		panic("Unable to start RPC server.")
+
+	//Create the JobStatus event handler:
+	if handler, err = events.NewJobStatusEventHandler(srv.Repo); err != nil {
+		panic(err)
+	}
+
+	//Subscribe the even handler to the topic:
+	if err = srv.Bus.Subscribe(os.Getenv("STATUS_TOPIC"), handler); err != nil {
+		panic(err)
+	}
+
+	//Start the server:
+	if err = srv.Start(); err != nil {
+		panic(err)
 	}
 
 }

@@ -1,8 +1,8 @@
 package events
 
 import (
-	"github.com/marrick66/sample-microservices/preprocessor/data"
-	"github.com/marrick66/sample-microservices/preprocessor/storage"
+	"jobregistration-app/data"
+	"jobregistration-app/storage"
 )
 
 //JobStatusEventHandler is the type that implements the EventHandler interface for the
@@ -27,9 +27,7 @@ func (handler *JobStatusEventHandler) Handle(event interface{}) error {
 
 	statusEvent, ok := event.(*JobStatusChanged)
 	if ok {
-		_, err := handler.repo.Set(&data.JobRegistration{ID: statusEvent.ID, Status: statusEvent.Status})
-
-		if err != nil {
+		if _, err := handler.repo.Set(&data.JobRegistration{ID: statusEvent.ID, Status: statusEvent.Status}); err != nil {
 			return err
 		}
 	}

@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/marrick66/sample-microservices/preprocessor/data"
+	"jobregistration-app/data"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -63,17 +64,18 @@ func (repo *JobRegistrationRepository) Disconnect() error {
 func (repo *JobRegistrationRepository) Get(id string) (*data.JobRegistration, error) {
 
 	var result data.JobRegistration
-	docid, err := primitive.ObjectIDFromHex(id)
+	var docid primitive.ObjectID
+	var err error
 
-	if err != nil {
+	if docid, err = primitive.ObjectIDFromHex(id); err != nil {
 		return nil, err
 	}
 
 	filter := bson.M{"_id": docid}
-	context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
 	defer cancel()
 
-	if err := repo.jobRegistrationCollection.FindOne(context, filter).Decode(&result); err != nil {
+	if err := repo.jobRegistrationCollection.FindOne(ctx, filter).Decode(&result); err != nil {
 		return nil, err
 	}
 
@@ -105,15 +107,15 @@ func (repo *JobRegistrationRepository) IsUp() bool {
 //job registration object and its initial event data.
 func (repo *JobRegistrationRepository) insertNew(registration *data.JobRegistration) (string, error) {
 
-	session, err := repo.client.StartSession()
+	var result *mongo.InsertOneResult
+	var session mongo.Session
+	var err error
 
-	if err != nil {
+	if session, err = repo.client.StartSession(); err != nil {
 		return "", err
 	}
 
-	err = session.StartTransaction()
-
-	if err != nil {
+	if err = session.StartTransaction(); err != nil {
 		return "", err
 	}
 
@@ -121,24 +123,22 @@ func (repo *JobRegistrationRepository) insertNew(registration *data.JobRegistrat
 	//insert the job event data.
 	context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
 	defer cancel()
+	defer session.EndSession(context)
 
-	regResult, err := repo.jobRegistrationCollection.InsertOne(context, registration)
-
-	var id primitive.ObjectID
-
-	if err == nil {
-		id = regResult.InsertedID.(primitive.ObjectID)
-		eventData := data.JobEventData{ID: id}
-		_, err = repo.eventDataCollection.InsertOne(context, eventData)
+	if result, err = repo.jobRegistrationCollection.InsertOne(context, registration); err != nil {
+		session.AbortTransaction(context)
+		return "", nil
 	}
 
-	if err != nil {
+	id := result.InsertedID.(primitive.ObjectID)
+	eventData := data.JobEventData{ID: id}
+
+	if _, err = repo.eventDataCollection.InsertOne(context, eventData); err != nil {
 		session.AbortTransaction(context)
 		return "", err
 	}
 
 	session.CommitTransaction(context)
-	session.EndSession(context)
 
 	return id.Hex(), nil
 }
@@ -151,9 +151,7 @@ func (repo *JobRegistrationRepository) updateExisting(registration *data.JobRegi
 	context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
 	defer cancel()
 
-	_, err := repo.jobRegistrationCollection.UpdateOne(context, filter, updateDoc, nil)
-
-	if err != nil {
+	if _, err := repo.jobRegistrationCollection.UpdateOne(context, filter, updateDoc, nil); err != nil {
 		return "", err
 	}
 

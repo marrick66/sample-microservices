@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/marrick66/sample-microservices/preprocessor/data"
+	"jobregistration-app/data"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -23,10 +24,10 @@ type JobEventDataRepository struct {
 //NewJobEventDataRepository creates a MongoDb client based on the passed in connection string.
 func NewJobEventDataRepository(connection string) (*JobEventDataRepository, error) {
 
-	client, err := mongo.NewClient(
-		options.Client().ApplyURI(connection))
+	var client *mongo.Client
+	var err error
 
-	if err != nil {
+	if client, err = mongo.NewClient(options.Client().ApplyURI(connection)); err != nil {
 		return nil, err
 	}
 
@@ -38,10 +39,11 @@ func NewJobEventDataRepository(connection string) (*JobEventDataRepository, erro
 //Connect attempts to connect to the server and assign the collections used.
 func (repo *JobEventDataRepository) Connect() error {
 
-	context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
+
 	defer cancel()
 
-	if err := repo.client.Connect(context); err != nil {
+	if err := repo.client.Connect(ctx); err != nil {
 		return err
 	}
 
@@ -54,17 +56,18 @@ func (repo *JobEventDataRepository) Connect() error {
 func (repo *JobEventDataRepository) Get(id string) (*data.JobEventData, error) {
 
 	var result data.JobEventData
-	docid, err := primitive.ObjectIDFromHex(id)
+	var docid primitive.ObjectID
+	var err error
 
-	if err == nil {
-		filter := bson.D{{"_id", docid}}
-		context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
-		defer cancel()
-
-		err = repo.eventDataCollection.FindOne(context, filter).Decode(&result)
+	if docid, err = primitive.ObjectIDFromHex(id); err != nil {
+		return nil, err
 	}
 
-	if err != nil {
+	filter := bson.D{{"_id", docid}}
+	ctx, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
+	defer cancel()
+
+	if err = repo.eventDataCollection.FindOne(ctx, filter).Decode(&result); err != nil {
 		return nil, err
 	}
 
@@ -75,24 +78,25 @@ func (repo *JobEventDataRepository) Get(id string) (*data.JobEventData, error) {
 //send time to now.
 func (repo *JobEventDataRepository) Increment(id string) error {
 
-	docid, err := primitive.ObjectIDFromHex(id)
+	var docid primitive.ObjectID
+	var err error
 
-	if err == nil {
-		filter := bson.D{{"_id", docid}}
-
-		//The $inc is a MongoDB operator to increment a field on a document...
-		updateDoc := bson.D{
-			{"_id", docid},
-			{"$inc", bson.D{{"registrationeventsset", 1}}},
-			{"lastregistrationeventsent", time.Now()}}
-
-		context, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
-		defer cancel()
-
-		_, err = repo.eventDataCollection.UpdateOne(context, filter, updateDoc)
+	if docid, err = primitive.ObjectIDFromHex(id); err != nil {
+		return err
 	}
 
-	if err != nil {
+	filter := bson.D{{"_id", docid}}
+
+	//The $inc is a MongoDB operator to increment a field on a document...
+	updateDoc := bson.D{
+		{"_id", docid},
+		{"$inc", bson.D{{"registrationeventsset", 1}}},
+		{"lastregistrationeventsent", time.Now()}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), repo.defaultTimeout)
+	defer cancel()
+
+	if _, err = repo.eventDataCollection.UpdateOne(ctx, filter, updateDoc); err != nil {
 		return err
 	}
 

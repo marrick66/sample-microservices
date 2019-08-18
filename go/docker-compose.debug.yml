@@ -1,10 +1,16 @@
 version: '2.1'
 
 services:
-  go:
-    image: go
+  jobregistration:
+    image: jobregistration-api
     build:
       context: .
       dockerfile: Dockerfile
     ports:
         - 8001:8001
+    environment:
+        - JOBS_DB=mongodb://mongoadmin:secret@192.168.0.115:27017
+        - EVENT_BUS=amqp://guest:guest@192.168.0.115:5672
+        - EXCHANGE=jobs
+        - REGISTERED_TOPIC=jobevents.jobregistered
+        - STATUS_TOPIC=jobevents.statusupdate
