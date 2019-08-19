@@ -37,11 +37,11 @@ We assume that there are some predefined job definitions somewhere, and they are
 
 Both are containerized for deployment by Kubernetes or some other orchestrator service.
 
-### An example data flow diagram:
-<<Insert image here>>
+### An example within a cloud provider:
+![Simple Diagram](./microservice.png)
 
 ## Some prerequisite(important) comments:
-This is by no means production-worthy code. It represents just a few hours investment in learning and integrating Go into a microservice environment. It doesn't include unit or integration tests. Assuming that eventually something like this would be implemented in production there are a plethora of things that would need to be redesigned. Since there are two separate communication methods (protobuf and REST), an API gateway should be used for external use. Versioning, request throttling, authentication, etc. would be implemented here. Assuming that's in place, it's missing any authorization mediation locally or TLS on the endpoints. No production application log aggregation or consolidating exists, and health check operations need to be implemented for load balancing or Kubernetes monitoring. From online hearsay, RabbitMQ is unreliable for cloud-scale deployments, but I don't have any empirical data to back that up. The ephemeral nature of the queues and topics means that there's only a "at most once" guarantee on events. This would need to be evaluated to see if a stronger guarantee is needed. On another note, this also represents my first exposure to the Go ecosystem, so it's probably not idiomatic code. The error handling isn't clean, and should be refactored after I've had a chance to research best practices.
+This is by no means production-worthy code. It represents just a few hours investment in learning and integrating Go into a microservice environment and getting familiar with VSCode. It doesn't include unit, integration, or performance tests. Assuming that eventually something like this would be implemented in production there are a plethora of things that would need to be redesigned. Since there are two separate communication methods (protobuf and REST), an API gateway should be used for external use. Versioning, request throttling, authentication, etc. would be implemented here. Assuming that's in place, it's missing any authorization mediation locally or TLS on the endpoints. No production application log aggregation or consolidating exists, and health check operations need to be implemented for load balancing or Kubernetes monitoring. From online hearsay, RabbitMQ is unreliable for cloud-scale deployments, but I don't have any empirical data to back that up. The ephemeral nature of the queues and topics means that there's only a "at most once" guarantee on events. This would need to be evaluated to see if a stronger guarantee is needed. On another note, this also represents my first exposure to the Go ecosystem, so it's probably not idiomatic code. The error handling isn't clean, and should be refactored after I've had a chance to research best practices.
 
 ### Simple scalability and fault modeling:
 For simplicity, I assume that the actual execution of registered jobs is out of scope. We'll model the requirements with the following assumptions:
@@ -57,5 +57,13 @@ closest data center.
 * __Data consistency__: MongoDB has client defined strong or eventual consistency to replicas. Not requiring strong consistency would probably not be an issue for the use cases above, since the user can simply retry.
 * __Container orchestration__: The load balancer and orchestrator will use the services health checks to determine liveness. Deployments should use rollout to maximize uptime.
 
-#### Scalability estimation (TODO):
-These are simple services, and will be I/O bound on performance. Meaning, the primary method of scaling would be horizontally via sharding on data and event resources. The containers themselves are stateless. I'm working on some empirical data for a baseline in Azure using AKS, Azure Service Bus, and either Table Storage or Cosmos DB. Haven't heard great things about Cosmos, though. Leslie Lamport helped design it, so that's a fun anecdote for distributed systems fans.
+#### Scalability Testing Plan (In Progress):
+Since this is a personal project, there are obviously cost constraints that keep me from doing a full testing cycle with a large set of virtual users.  That being said, I am going to setup a CI/CD pipeline to what Azure resources I can get. With a personal project there's no performance criteria per se, but we should be able to get a decent estimation of what we can handle. Starting from scratch, the strategy is:
+
+* Run profiling on small concurrent workloads (100, 500, 1000) locally in development for getting baseline of the hot paths in the code, basic CPU, memory, and I/O as well as identifying possible opportunities to optimize and/or add concurrency. 
+  1. The Job Registration service will be profiled with pprof.
+  2. The Job Scheduling service will be profiled with MS Perfview and MiniProfiler.
+
+* Use the (imperfect) data along with the stated SLA response times and resource assignment for each Azure product to model usage and response times per call. This will give a t-shirt size of what we should expect to see.
+
+*  TODO: Research and choose the Azure monitoring solution.  Application insights so far doesn't seem to support Go natively. May have to move a step ahead and deploy these as K8 pods and use that monitoring.
