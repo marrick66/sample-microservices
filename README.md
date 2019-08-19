@@ -38,7 +38,7 @@ We assume that there are some predefined job definitions somewhere, and they are
 Both are containerized for deployment by Kubernetes or some other orchestrator service.
 
 ### An example within a cloud provider:
-![Simple Diagram](./microservice.png)
+![Simple Diagram](https://github.com/marrick66/sample-microservices/blob/master/Microservice.png)
 
 ## Some prerequisite(important) comments:
 This is by no means production-worthy code. It represents just a few hours investment in learning and integrating Go into a microservice environment and getting familiar with VSCode. It doesn't include unit, integration, or performance tests. Assuming that eventually something like this would be implemented in production there are a plethora of things that would need to be redesigned. Since there are two separate communication methods (protobuf and REST), an API gateway should be used for external use. Versioning, request throttling, authentication, etc. would be implemented here. Assuming that's in place, it's missing any authorization mediation locally or TLS on the endpoints. No production application log aggregation or consolidating exists, and health check operations need to be implemented for load balancing or Kubernetes monitoring. From online hearsay, RabbitMQ is unreliable for cloud-scale deployments, but I don't have any empirical data to back that up. The ephemeral nature of the queues and topics means that there's only a "at most once" guarantee on events. This would need to be evaluated to see if a stronger guarantee is needed. On another note, this also represents my first exposure to the Go ecosystem, so it's probably not idiomatic code. The error handling isn't clean, and should be refactored after I've had a chance to research best practices.
