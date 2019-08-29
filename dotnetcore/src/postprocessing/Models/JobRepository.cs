@@ -21,7 +21,7 @@ namespace postprocessing.Models
 
             _connectionString = Configuration.GetConnectionString("Jobs");
         }
-        public async Task<Job> Get(string Id)
+        public async Task<Job> GetAsync(string Id)
         {
             using(var conn = new SqlConnection(_connectionString))
             {
@@ -31,7 +31,7 @@ namespace postprocessing.Models
             }
         }
 
-        public async Task Set(Job Obj)
+        public async Task SetAsync(Job Obj)
         {
             using(var conn = new SqlConnection(_connectionString))
             {
@@ -50,6 +50,11 @@ namespace postprocessing.Models
             {
                 return await conn.QueryAsync<Job>("SELECT TOP 100 * FROM JobStatus");
             }
+        }
+
+        public void Dispose()
+        {
+            //Do nothing.
         }
     }
 }

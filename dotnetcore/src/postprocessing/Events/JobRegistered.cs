@@ -1,6 +1,3 @@
-using postprocessing.EventHandling;
-using postprocessing.Models;
-
 namespace postprocessing.Events
 {
     public class JobRegistered : IEvent

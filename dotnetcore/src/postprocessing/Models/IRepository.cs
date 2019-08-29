@@ -1,12 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace postprocessing.Models 
 {
-    public interface IRepository<T>
+    public interface IRepository<T> : IDisposable
     {
-        Task<T> Get(string Id);
+        Task<T> GetAsync(string Id);
         Task<IEnumerable<T>> GetAll();
-        Task Set(T Obj);
+        Task SetAsync(T Obj);
     }
 }

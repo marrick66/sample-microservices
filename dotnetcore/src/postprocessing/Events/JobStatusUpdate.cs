@@ -1,5 +1,4 @@
 using Newtonsoft.Json;
-using postprocessing.EventHandling;
 using postprocessing.Models;
 
 namespace postprocessing.Events

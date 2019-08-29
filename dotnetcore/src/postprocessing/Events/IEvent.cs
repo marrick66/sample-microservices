@@ -1,4 +1,4 @@
-namespace postprocessing.EventHandling
+namespace postprocessing.Events
 {
     public interface IEvent
     {

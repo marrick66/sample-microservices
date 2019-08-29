@@ -13,3 +13,6 @@ obj/
 
 #VSCode specific
 launch.json
+/dotnetcore/src/postprocessing/postprocessing.sln
+/dotnetcore/src/postprocessing/postprocessing.csproj.user
+/dotnetcore/src/postprocessing/.vs/postprocessing/v15

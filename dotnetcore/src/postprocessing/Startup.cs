@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Converters;
 using postprocessing.EventHandling;
 using postprocessing.Events;
+using postprocessing.Integration.Handling;
 using postprocessing.Models;
 using Swashbuckle.AspNetCore.Swagger;
 
@@ -20,8 +15,6 @@ namespace postprocessing
 {
     public class Startup
     {
-        private IEventBus _bus;
-
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -51,12 +44,16 @@ namespace postprocessing
 
             //Add the local repositories used:
             services.AddRepositories();
-            
-            //Add the custom event bus configuration:
-            services.AddEventBus();
 
-            //Setup background event processing:
-            services.AddHostedService<EventHandlingService<JobRegistered>>();
+            //Add event handlers
+            services.AddEventHandlers();
+
+            //Add the background event service and register the known handlers:
+            services.AddEventIntegrationServices(
+                options =>
+                {
+                    options.RegisterHandler<JobRegistered>();
+                });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
