@@ -16,3 +16,5 @@ launch.json
 /dotnetcore/src/postprocessing/postprocessing.sln
 /dotnetcore/src/postprocessing/postprocessing.csproj.user
 /dotnetcore/src/postprocessing/.vs/postprocessing/v15
+/go/src/jobregistration-app/.vs/jobregistration-app/v15
+/go/src/jobregistration-app/.vs

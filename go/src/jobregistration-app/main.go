@@ -4,6 +4,7 @@ import (
 	"jobregistration-app/events"
 	"jobregistration-app/rpc"
 	"os"
+	"log"
 )
 
 /*
@@ -17,23 +18,40 @@ simplicity.
 */
 
 func main() {
+	var repository *storage.JobRegistrationStore
+	var bus *events.EventBus
 	var srv *rpc.JobRegistrationServerImpl
-	var handler events.EventHandler
+	var handler *events.EventHandler
 	var err error
 
+	defaultBus := os.Getenv("EVENT_BUS")
+	defaultExchange := os.Getenv("EXCHANGE")
+	defaultTopic := os.Getenv("STATUS_TOPIC")
+	defaultDb := os.Getenv("JOBS_DB")
+
+	//Get the repository:
+	if repository, err = storage.NewJobRegistrationRepository(defaultDb); err != nil {
+		return nil, err
+	}
+
+	//Get the event bus:
+	srv.Repo = repo
+	if bus, err = events.NewAMQPEventBus(defaultBus), JsonByteConverter{}); err != nil {
+		return nil, err
+	}
 	//Get the RPC server instance:
-	if srv, err = rpc.NewJobRegistrationServer(":8001"); err != nil {
-		panic(err)
+	if srv, err = rpc.NewJobRegistrationServer(bus, repository,":8001", defaultExchange, defaultTopic); err != nil {
+		log.Fatalf("Failed to get job registration server %v", err)
 	}
 
 	//Create the JobStatus event handler:
 	if handler, err = events.NewJobStatusEventHandler(srv.Repo); err != nil {
-		panic(err)
+		log.Fatalf("Failed to get job status event handler %v", err)
 	}
 
 	//Subscribe the even handler to the topic:
-	if err = srv.Bus.Subscribe(os.Getenv("STATUS_TOPIC"), handler); err != nil {
-		panic(err)
+	if err = srv.Bus.Subscribe(defaultExchange, defaultTopic, handler); err != nil {
+		log.Fatalf("Failed to get subscribe job status event handler %v", err)
 	}
 
 	//Start the server:

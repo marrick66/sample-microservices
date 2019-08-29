@@ -3,29 +3,46 @@ package events
 import (
 	"encoding/json"
 	"os"
-
+	"log"
 	"github.com/streadway/amqp"
 )
 
 //AMQPEventBus is the RabbitMQ implementation of an event bus.
 type AMQPEventBus struct {
-	exchange         string
 	connectionString string
-	contentType      string
 	connection       *amqp.Connection
-	channel          *amqp.Channel
+	publishChannel   *amqp.Channel
+	consumeChannel	 *amqp.Channel
+	converter		 *converters.ByteConverter
+	subscriptions    map[subscriptionKey]chan bool
 }
 
-//NewAMQPEventBus creates the implementation with defaults.
-func NewAMQPEventBus() (*AMQPEventBus, error) {
-	return &AMQPEventBus{
-		exchange:         os.Getenv("EXCHANGE"),
-		connectionString: os.Getenv("EVENT_BUS"),
-		contentType:      "application/json"}, nil
+//subscriptionKey is used uniquely identify the channel of the subscription for closing
+//at a later time.
+type subscriptionKey struct {
+	exchange string
+	topic string
 }
 
-//initChannel creates a new channel to be used internally.
-func (bus *AMQPEventBus) initChannel() error {
+//NewAMQPEventBus creates an implementation of an event bus that publishes outgoing messages, and allows
+//subscriptions for incoming messages. The Converter implementation passed in determines the format
+//that the message has across the wire.
+func NewAMQPEventBus(connectionString string, converter ByteConverter) (*AMQPEventBus, error) {
+	bus := &AMQPEventBus{
+		connectionString: connectionString,
+		converter: converter,
+		subscriptions: make(map[subscriptionKey]chan bool)}
+
+	if(err := bus.initChannels(); err != nil{
+		return nil, err
+	}
+
+	return bus, nil
+}
+
+//initChannel is an internal helper method that creates the Connection
+//and sets the default client channel to use for publishing and consuming messages.
+func (bus *AMQPEventBus) initChannels() error {
 
 	var err error
 	var channel *amqp.Channel
@@ -33,25 +50,43 @@ func (bus *AMQPEventBus) initChannel() error {
 	if bus.connection == nil || bus.connection.IsClosed() {
 		conn, err := amqp.Dial(bus.connectionString)
 
-		if err == nil {
-			bus.connection = conn
-			channel, err = bus.connection.Channel()
+		if err != nil {
+			return err
 		}
 
+		bus.connection = conn
 	}
 
-	if err != nil {
+
+	if(bus.publishChannel, err := bus.connection.Channel(); err != nil) {
 		return err
 	}
 
-	bus.channel = channel
+	if(bus.consumeChannel, err := bus.connection.Channe(); err != nil) {
+		return err
+	}
+
+
 	return nil
+}
+
+//Close sends messages to all subscriptions done channel to stop the event loops,
+//closes the publish/consume channels, then closes the connection.
+func (bus *AMQPEventBus) Close() {
+
+	for key, done := range bus.subscriptions {
+		done <- true
+	}
+
+	bus.publishChannel.Close()
+	bus.consumeChannel.Close()
+	bus.connection.Close()
 }
 
 //Publish sends a message to the bus for a topic. For the RabbitMQ implementation,
 //the jobs exchange already exists on the development box, so there's no need to
 //declare it here.
-func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
+func (bus *AMQPEventBus) Publish(exchange string, topic string, message interface{}) error {
 
 	if bus.connection == nil || bus.connection.IsClosed() {
 		if err := bus.initChannel(); err != nil {
@@ -62,7 +97,7 @@ func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
 	var err error
 	var body []byte
 
-	if body, err = json.Marshal(message); err != nil {
+	if body, err = bus.converter.ToBytes(message); err != nil {
 		return err
 	}
 
@@ -70,12 +105,12 @@ func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
 	//asynchronous, so no need to run it as a goroutine. Should
 	//profile it to be sure, though.
 	if err = bus.channel.Publish(
-		bus.exchange,
+		exchange,
 		topic,
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: bus.contentType,
+			ContentType: bus.converter.ContentType(),
 			Body:        body}); err != nil {
 		return err
 	}
@@ -86,7 +121,16 @@ func (bus *AMQPEventBus) Publish(topic string, message interface{}) error {
 //Subscribe assigns a topic to an ephemeral queue assigned to an event handler, then starts the event loop
 //to handle incoming messages. There's a design flaw here that needs to be dealt with. If the channel/connection closes,
 //all subscriptions are lost. So, there needs to be a way to kill all the listenForEvents goroutines, and resubscribe existing handlers.
-func (bus *AMQPEventBus) Subscribe(topic string, handler EventHandler) error {
+func (bus *AMQPEventBus) Subscribe(exchange string, topic string, handler EventHandler) error {
+
+	key := subscriptionKey { 
+		exchange: exchange, 
+		topic: topic}
+
+	//Check to make sure there isn't already a subscription for this exchange/topic combination:
+	if(_, ok := bus.subscriptions[key]; ok == false) {
+		return errors.New(fmt.Sprintf("Subscription for %s/%s already exists.", exchange, topic))
+	}
 
 	if bus.connection == nil || bus.connection.IsClosed() {
 		if err := bus.initChannel(); err != nil {
@@ -99,36 +143,45 @@ func (bus *AMQPEventBus) Subscribe(topic string, handler EventHandler) error {
 	var deliveryChan <-chan amqp.Delivery
 
 	//Setup temporary queue for this consumer:
-	if tempQueue, err = bus.channel.QueueDeclare("", true, true, true, false, nil); err != nil {
+	if tempQueue, err = bus.consumeChannel.QueueDeclare("", true, true, true, false, nil); err != nil {
 		return err
 	}
 
 	//Bind the temporary queue to the exchange and topic:
-	if err := bus.channel.QueueBind(tempQueue.Name, topic, bus.exchange, false, nil); err != nil {
+	if err := bus.consumeChannel.QueueBind(tempQueue.Name, topic, exchange, false, nil); err != nil {
 		return err
 	}
 
 	//Get a channel that delivers messages for the topic:
-	if deliveryChan, err = bus.channel.Consume(tempQueue.Name, "", true, true, true, false, nil); err != nil {
-		return nil
+	if deliveryChan, err = bus.consumeChannel.Consume(tempQueue.Name, topic, true, true, true, false, nil); err != nil {
+		return err
 	}
 
-	//Asynchronously handle messages from the channel:
-	go listenForEvents(deliveryChan, handler)
+	//create a channel for stopping the event loop goroutine
+	done := make(chan bool)
+
+	//Save the subscription locally and start the event handling loop:
+	bus.subscriptions[key] = done
+	go bus.listenForEvents(deliveryChan, done, handler)
+	
 	return nil
 }
 
-//listenForEvents is a handler specific event loop that waits for subscribed topic messages to arrive.
-func listenForEvents(deliveryChan <-chan amqp.Delivery, handler EventHandler) {
-	for message := range deliveryChan {
-
-		//Unmarshalling needs a typed implementation to be able to
-		//deserialize to, which is handler specific.
-		event := handler.DefaultEvent()
-		err := json.Unmarshal(message.Body, event)
-
-		if err == nil {
-			go handler.Handle(event)
+//listenForEvents is a handler specific event loop that waits for subscribed topic messages to arrive. If they
+//can be successfully converted to the handlers default event, a goroutine is called to do the work.
+func (bus *AMQPEventBus) listenForEvents(deliveryChan <-chan amqp.Delivery, done <-chan bool, handler EventHandler) {
+	for {
+		select {
+			case message := <-deliveryChan:
+				event := handler.DefaultEvent()
+				//If the message can't be converted, just log it and skip:
+				if(err := bus.converter.FromBytes(message.Body, event); err == nil)
+					go handler.Handle(event)
+				} else {
+					log.Printf("Unable to convert raw message bytes: %s.", message)
+				}
+			case <-done:
+				return
 		}
 	}
 }

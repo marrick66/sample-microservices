@@ -28,6 +28,7 @@ type JobRegistrationServerImpl struct {
 	port     string
 	Repo     storage.JobRegistrationStore
 	Bus      events.EventBus
+	exchange string
 	topic    string
 }
 
@@ -100,27 +101,16 @@ func (srv *JobRegistrationServerImpl) GetRegistration(ctx context.Context, reque
 }
 
 //NewJobRegistrationServer creates the server object and gRPC dependencies.
-func NewJobRegistrationServer(port string) (*JobRegistrationServerImpl, error) {
+func NewJobRegistrationServer(bus *events.EventBus, repository *storage.JobRegistrationStore, port string, exchange string, topic string) (*JobRegistrationServerImpl, error) {
 	srv := JobRegistrationServerImpl{
 		listener: nil,
 		port:     port,
 		rpcSrv:   grpc.NewServer(),
-		topic:    os.Getenv("REGISTERED_TOPIC")}
+		exchange: exchange
+		topic:    topic,
+		repo:	  repository,
+		bus:	  bus}
 
-	var repo storage.JobRegistrationStore
-	var bus events.EventBus
-	var err error
-
-	if repo, err = storage.NewJobRegistrationRepository(os.Getenv("JOBS_DB")); err != nil {
-		return nil, err
-	}
-
-	srv.Repo = repo
-	if bus, err = events.NewAMQPEventBus(); err != nil {
-		return nil, err
-	}
-
-	srv.Bus = bus
 	RegisterJobRegistrationServer(srv.rpcSrv, &srv)
 
 	return &srv, nil
