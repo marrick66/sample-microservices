@@ -1,10 +1,12 @@
 package main
 
 import (
+	"jobregistration-app/converters"
 	"jobregistration-app/events"
 	"jobregistration-app/rpc"
-	"os"
+	"jobregistration-app/storage"
 	"log"
+	"os"
 )
 
 /*
@@ -18,40 +20,42 @@ simplicity.
 */
 
 func main() {
-	var repository *storage.JobRegistrationStore
-	var bus *events.EventBus
+	var repository storage.JobRegistrationStore
+	var bus events.EventBus
 	var srv *rpc.JobRegistrationServerImpl
-	var handler *events.EventHandler
+	var handler events.EventHandler
 	var err error
 
 	defaultBus := os.Getenv("EVENT_BUS")
 	defaultExchange := os.Getenv("EXCHANGE")
-	defaultTopic := os.Getenv("STATUS_TOPIC")
+	statusTopic := os.Getenv("STATUS_TOPIC")
+	registeredTopic := os.Getenv("REGISTERED_TOPIC")
 	defaultDb := os.Getenv("JOBS_DB")
+	converter := &converters.JSONByteConverter{}
 
 	//Get the repository:
 	if repository, err = storage.NewJobRegistrationRepository(defaultDb); err != nil {
-		return nil, err
+		log.Fatalf("Failed to get job repository: %v", err)
 	}
 
 	//Get the event bus:
-	srv.Repo = repo
-	if bus, err = events.NewAMQPEventBus(defaultBus), JsonByteConverter{}); err != nil {
-		return nil, err
+	if bus, err = events.NewAMQPEventBus(defaultBus, converter); err != nil {
+		log.Fatalf("Failed to get event bus: %v", err)
 	}
+
 	//Get the RPC server instance:
-	if srv, err = rpc.NewJobRegistrationServer(bus, repository,":8001", defaultExchange, defaultTopic); err != nil {
-		log.Fatalf("Failed to get job registration server %v", err)
+	if srv, err = rpc.NewJobRegistrationServer(bus, repository, ":8001", defaultExchange, registeredTopic); err != nil {
+		log.Fatalf("Failed to get job registration server: %v", err)
 	}
 
 	//Create the JobStatus event handler:
 	if handler, err = events.NewJobStatusEventHandler(srv.Repo); err != nil {
-		log.Fatalf("Failed to get job status event handler %v", err)
+		log.Fatalf("Failed to get job status event handler: %v", err)
 	}
 
-	//Subscribe the even handler to the topic:
-	if err = srv.Bus.Subscribe(defaultExchange, defaultTopic, handler); err != nil {
-		log.Fatalf("Failed to get subscribe job status event handler %v", err)
+	//Subscribe the even handler to the status topic:
+	if err = srv.Bus.Subscribe(defaultExchange, statusTopic, handler); err != nil {
+		log.Fatalf("Failed to get subscribe job status event handler: %v", err)
 	}
 
 	//Start the server:

@@ -3,6 +3,7 @@ package events
 import (
 	"jobregistration-app/data"
 	"jobregistration-app/storage"
+	"log"
 )
 
 //JobStatusEventHandler is the type that implements the EventHandler interface for the
@@ -30,6 +31,7 @@ func (handler *JobStatusEventHandler) Handle(event interface{}) error {
 		if _, err := handler.repo.Set(&data.JobRegistration{ID: statusEvent.ID, Status: statusEvent.Status}); err != nil {
 			return err
 		}
+		log.Printf("Saved event %v", event)
 	}
 
 	return nil

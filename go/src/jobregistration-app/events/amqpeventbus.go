@@ -1,9 +1,10 @@
 package events
 
 import (
-	"encoding/json"
-	"os"
+	"fmt"
+	"jobregistration-app/converters"
 	"log"
+
 	"github.com/streadway/amqp"
 )
 
@@ -12,8 +13,8 @@ type AMQPEventBus struct {
 	connectionString string
 	connection       *amqp.Connection
 	publishChannel   *amqp.Channel
-	consumeChannel	 *amqp.Channel
-	converter		 *converters.ByteConverter
+	consumeChannel   *amqp.Channel
+	converter        converters.ByteConverter
 	subscriptions    map[subscriptionKey]chan bool
 }
 
@@ -21,19 +22,19 @@ type AMQPEventBus struct {
 //at a later time.
 type subscriptionKey struct {
 	exchange string
-	topic string
+	topic    string
 }
 
 //NewAMQPEventBus creates an implementation of an event bus that publishes outgoing messages, and allows
 //subscriptions for incoming messages. The Converter implementation passed in determines the format
 //that the message has across the wire.
-func NewAMQPEventBus(connectionString string, converter ByteConverter) (*AMQPEventBus, error) {
+func NewAMQPEventBus(connectionString string, converter converters.ByteConverter) (*AMQPEventBus, error) {
 	bus := &AMQPEventBus{
 		connectionString: connectionString,
-		converter: converter,
-		subscriptions: make(map[subscriptionKey]chan bool)}
+		converter:        converter,
+		subscriptions:    make(map[subscriptionKey]chan bool)}
 
-	if(err := bus.initChannels(); err != nil{
+	if err := bus.initChannels(); err != nil {
 		return nil, err
 	}
 
@@ -45,7 +46,6 @@ func NewAMQPEventBus(connectionString string, converter ByteConverter) (*AMQPEve
 func (bus *AMQPEventBus) initChannels() error {
 
 	var err error
-	var channel *amqp.Channel
 
 	if bus.connection == nil || bus.connection.IsClosed() {
 		conn, err := amqp.Dial(bus.connectionString)
@@ -57,15 +57,13 @@ func (bus *AMQPEventBus) initChannels() error {
 		bus.connection = conn
 	}
 
-
-	if(bus.publishChannel, err := bus.connection.Channel(); err != nil) {
+	if bus.publishChannel, err = bus.connection.Channel(); err != nil {
 		return err
 	}
 
-	if(bus.consumeChannel, err := bus.connection.Channe(); err != nil) {
+	if bus.consumeChannel, err = bus.connection.Channel(); err != nil {
 		return err
 	}
-
 
 	return nil
 }
@@ -74,13 +72,15 @@ func (bus *AMQPEventBus) initChannels() error {
 //closes the publish/consume channels, then closes the connection.
 func (bus *AMQPEventBus) Close() {
 
-	for key, done := range bus.subscriptions {
+	for _, done := range bus.subscriptions {
 		done <- true
 	}
 
 	bus.publishChannel.Close()
 	bus.consumeChannel.Close()
 	bus.connection.Close()
+
+	log.Printf("AMQP event bus closed")
 }
 
 //Publish sends a message to the bus for a topic. For the RabbitMQ implementation,
@@ -89,7 +89,7 @@ func (bus *AMQPEventBus) Close() {
 func (bus *AMQPEventBus) Publish(exchange string, topic string, message interface{}) error {
 
 	if bus.connection == nil || bus.connection.IsClosed() {
-		if err := bus.initChannel(); err != nil {
+		if err := bus.initChannels(); err != nil {
 			return err
 		}
 	}
@@ -104,7 +104,7 @@ func (bus *AMQPEventBus) Publish(exchange string, topic string, message interfac
 	//According to the client documentation, this is
 	//asynchronous, so no need to run it as a goroutine. Should
 	//profile it to be sure, though.
-	if err = bus.channel.Publish(
+	if err = bus.publishChannel.Publish(
 		exchange,
 		topic,
 		false,
@@ -112,9 +112,11 @@ func (bus *AMQPEventBus) Publish(exchange string, topic string, message interfac
 		amqp.Publishing{
 			ContentType: bus.converter.ContentType(),
 			Body:        body}); err != nil {
-		return err
+		
+		log.Printf("Error sending %v to queue: %v", message, err)
 	}
 
+	log.Printf("Sent message %v to the queue.", message)
 	return nil
 }
 
@@ -123,17 +125,17 @@ func (bus *AMQPEventBus) Publish(exchange string, topic string, message interfac
 //all subscriptions are lost. So, there needs to be a way to kill all the listenForEvents goroutines, and resubscribe existing handlers.
 func (bus *AMQPEventBus) Subscribe(exchange string, topic string, handler EventHandler) error {
 
-	key := subscriptionKey { 
-		exchange: exchange, 
-		topic: topic}
+	key := subscriptionKey{
+		exchange: exchange,
+		topic:    topic}
 
 	//Check to make sure there isn't already a subscription for this exchange/topic combination:
-	if(_, ok := bus.subscriptions[key]; ok == false) {
-		return errors.New(fmt.Sprintf("Subscription for %s/%s already exists.", exchange, topic))
+	if _, ok := bus.subscriptions[key]; ok == true {
+		return fmt.Errorf("subscription for %s/%s already exists", exchange, topic)
 	}
 
 	if bus.connection == nil || bus.connection.IsClosed() {
-		if err := bus.initChannel(); err != nil {
+		if err := bus.initChannels(); err != nil {
 			return err
 		}
 	}
@@ -162,26 +164,29 @@ func (bus *AMQPEventBus) Subscribe(exchange string, topic string, handler EventH
 
 	//Save the subscription locally and start the event handling loop:
 	bus.subscriptions[key] = done
-	go bus.listenForEvents(deliveryChan, done, handler)
-	
+	go bus.listenForEvents(key, deliveryChan, done, handler)
+
+	log.Printf("Subscribed to exchange: %s/topic: %s", exchange, topic)
 	return nil
 }
 
 //listenForEvents is a handler specific event loop that waits for subscribed topic messages to arrive. If they
 //can be successfully converted to the handlers default event, a goroutine is called to do the work.
-func (bus *AMQPEventBus) listenForEvents(deliveryChan <-chan amqp.Delivery, done <-chan bool, handler EventHandler) {
+func (bus *AMQPEventBus) listenForEvents(key subscriptionKey, deliveryChan <-chan amqp.Delivery, done <-chan bool, handler EventHandler) {
 	for {
 		select {
-			case message := <-deliveryChan:
-				event := handler.DefaultEvent()
-				//If the message can't be converted, just log it and skip:
-				if(err := bus.converter.FromBytes(message.Body, event); err == nil)
-					go handler.Handle(event)
-				} else {
-					log.Printf("Unable to convert raw message bytes: %s.", message)
-				}
-			case <-done:
-				return
+		case message := <-deliveryChan:
+			log.Printf("Received message on %v", key)
+			event := handler.DefaultEvent()
+			//If the message can't be converted, just log it and skip:
+			if err := bus.converter.FromBytes(message.Body, event); err == nil {
+				go handler.Handle(event)
+			} else {
+				log.Printf("Unable to convert raw message bytes: %s.", message)
+			}
+		case <-done:
+			log.Printf("Event loop complete for %v", key)
+			return
 		}
 	}
 }

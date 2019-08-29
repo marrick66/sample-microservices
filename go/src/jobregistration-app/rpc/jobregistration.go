@@ -2,8 +2,8 @@ package rpc
 
 import (
 	"context"
+	"log"
 	"net"
-	"os"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -40,15 +40,21 @@ func (srv *JobRegistrationServerImpl) Register(ctx context.Context, request *Reg
 		}
 	}
 
-	id, err := srv.Repo.Set(
-		&data.JobRegistration{Name: request.Name, Status: data.Registered})
+	registration := data.JobRegistration{Name: request.Name, Status: data.Registered}
+	id, err := srv.Repo.Set(&registration)
 
 	if err == nil {
+
+		log.Printf("Created registration %s", id)
+
 		//Asynchronously send the JobRegisteredEvent to the coordinator for handling. It's possible
 		//that the channel blocks, so a lot of goroutines could exist here.
 		rawID, err := primitive.ObjectIDFromHex(id)
 		if err == nil {
-			go srv.Bus.Publish(srv.topic, events.JobRegisteredEvent{ID: rawID, Name: request.Name})
+			go srv.Bus.Publish(
+				srv.exchange,
+				srv.topic,
+				events.JobRegisteredEvent{ID: rawID, Name: request.Name})
 		}
 
 		return &RegistrationReply{Id: id}, nil
@@ -101,15 +107,15 @@ func (srv *JobRegistrationServerImpl) GetRegistration(ctx context.Context, reque
 }
 
 //NewJobRegistrationServer creates the server object and gRPC dependencies.
-func NewJobRegistrationServer(bus *events.EventBus, repository *storage.JobRegistrationStore, port string, exchange string, topic string) (*JobRegistrationServerImpl, error) {
+func NewJobRegistrationServer(bus events.EventBus, repository storage.JobRegistrationStore, port string, exchange string, topic string) (*JobRegistrationServerImpl, error) {
 	srv := JobRegistrationServerImpl{
 		listener: nil,
 		port:     port,
 		rpcSrv:   grpc.NewServer(),
-		exchange: exchange
+		exchange: exchange,
 		topic:    topic,
-		repo:	  repository,
-		bus:	  bus}
+		Repo:     repository,
+		Bus:      bus}
 
 	RegisterJobRegistrationServer(srv.rpcSrv, &srv)
 

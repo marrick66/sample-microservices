@@ -1,15 +1,23 @@
 package converters
 
-import "json"
+import "encoding/json"
 
-//JsonByteConverter simply wraps the standard json marshalling code into an interface, so
+//JSONByteConverter simply wraps the standard json marshalling code into an interface, so
 //that other formats might be substituted later.
-type JsonByteConverter struct { }
+type JSONByteConverter struct{}
 
-func (converter *JsonByteConverter) ToBytes(object interface{}) []byte, error {
-	return Json.Marshal(object)
+//ContentType returns the default JSON accept type.
+func (converter *JSONByteConverter) ContentType() string {
+	return "application/json"
 }
 
-func (converter *JsonByteConverter) FromBytes(bytes []byte, object interface{}) error {
-	return Json.Unmarshal(bytes, object)
+//ToBytes takes a generic object and attempts to convert it to a JSON byte string.
+func (converter *JSONByteConverter) ToBytes(object interface{}) ([]byte, error) {
+	return json.Marshal(object)
+}
+
+//FromBytes takes a default object, and then tries to serialize the
+//it from the JSON byte string.
+func (converter *JSONByteConverter) FromBytes(bytes []byte, object interface{}) error {
+	return json.Unmarshal(bytes, object)
 }

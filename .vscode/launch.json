@@ -13,9 +13,9 @@
                 "GOPATH": "c:/users/Sean/go/", 
                 "JOBS_DB": "mongodb://mongoadmin:secret@localhost:27017",
                 "EVENT_BUS": "amqp://guest:guest@localhost:5672",
-                "EXCHANGE": "jobs",
-                "REGISTERED_TOPIC": "jobevents.jobregistered",
-                "STATUS_TOPIC": "jobevents.statusupdate"},
+                "EXCHANGE": "JobEvents",
+                "REGISTERED_TOPIC": "JobRegisteredEvents",
+                "STATUS_TOPIC": "JobStatusEvents"},
             "cwd": "${workspaceFolder}/go/",
             "program": "${workspaceFolder}/go/src/jobregistration-app/main.go"
         },
