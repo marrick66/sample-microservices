@@ -77,7 +77,7 @@ namespace postprocessing.Integration
                 var sequence = Observable.Create(_connection, _config.IncomingMap[key]);
 
                 _sequences[key] = sequence;
-                _subscriptions.Add(registrations[key](_provider, sequence, _converter));
+                _subscriptions.Add(registrations[key](_provider, sequence, _converter, _logger));
             }
 
 

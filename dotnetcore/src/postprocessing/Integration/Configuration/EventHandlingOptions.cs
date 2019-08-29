@@ -1,9 +1,12 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using postprocessing.Events;
 using postprocessing.Integration.Converters;
+using postprocessing.Integration.Reactive;
 using RabbitMQ.Client.Events;
 using System;
 using System.Collections.Generic;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 
 namespace postprocessing.Integration.Configuration
@@ -14,7 +17,11 @@ namespace postprocessing.Integration.Configuration
     /// </summary>
     public class EventHandlingOptions
     {
-        public delegate IDisposable RegistrationFunction(IServiceProvider Provider, IObservable<BasicDeliverEventArgs> Sequence, IByteConverter Converter);
+        public delegate IDisposable RegistrationFunction(
+            IServiceProvider Provider, 
+            IObservable<BasicDeliverEventArgs> Sequence, 
+            IByteConverter Converter,
+            ILogger Logger);
 
         public Dictionary<Type, RegistrationFunction> Registrations { get; }
 
@@ -36,16 +43,19 @@ namespace postprocessing.Integration.Configuration
                 throw new InvalidOperationException($"A handler for {typeof(T)} has already been registered.");
 
             Registrations[typeof(T)] =
-                (provider, seq, converter) =>
+                (provider, seq, converter, logger) =>
                 {
                     var handler = provider.GetService<IObserver<T>>();
 
                     if (handler == null)
                         throw new InvalidOperationException($"No handler for {typeof(T)} could be found.");
 
-                    var convertedSeq = seq.Select(args => converter.FromBytes<T>(args.Body));
+                    var deserializedSeq = seq.Select(args => converter.FromBytes<T>(args.Body))
+                        .LogAndContinue(logger)
+                        .ObserveOn(ThreadPoolScheduler.Instance);
 
-                    return convertedSeq.Subscribe(handler);
+                    return deserializedSeq.Subscribe(handler);
+                    
                 };
         }
     }

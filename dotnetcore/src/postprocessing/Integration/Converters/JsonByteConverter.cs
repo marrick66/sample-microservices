@@ -19,28 +19,14 @@ namespace postprocessing.Integration.Converters
 
         public object FromBytes(byte[] Bytes)
         {
-            try
-            {
-                var json = _encoding.GetString(Bytes);
-                return JsonConvert.DeserializeObject(json);
-            }
-            catch
-            {
-                return default(object);
-            }
+            var json = _encoding.GetString(Bytes);
+            return JsonConvert.DeserializeObject(json);
         }
 
         public T FromBytes<T>(byte[] Bytes)
         {
-            try
-            {
-                var json = _encoding.GetString(Bytes);
-                return JsonConvert.DeserializeObject<T>(json);
-            }
-            catch
-            {
-                return default(T);
-            }
+            var json = _encoding.GetString(Bytes);
+            return JsonConvert.DeserializeObject<T>(json);
         }
 
         public byte[] ToBytes(object Obj)

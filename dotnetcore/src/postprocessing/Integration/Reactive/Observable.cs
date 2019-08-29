@@ -1,4 +1,5 @@
-﻿using RabbitMQ.Client;
+﻿using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System;
 using System.Linq;
@@ -16,6 +17,21 @@ namespace postprocessing.Integration.Reactive
         {
             return new EventingBasicConsumerSequence(Connection, Configuration)
                 .OfType<BasicDeliverEventArgs>();
+        }
+
+        /// <summary>
+        /// Helper method to catch an error in the sequence, log it, and continue with the original. 
+        /// It's defined recursively, because just returning the original sequence will fail on
+        /// the next error received.
+        /// </summary>
+        public static IObservable<T> LogAndContinue<T>(this IObservable<T> Sequence, ILogger Logger)
+        {
+            return Sequence.Catch<T, Exception>(
+                ex =>
+                {
+                    Logger.LogError(ex, "Error in sequence.");
+                    return Sequence.LogAndContinue(Logger);
+                });
         }
     }
 }

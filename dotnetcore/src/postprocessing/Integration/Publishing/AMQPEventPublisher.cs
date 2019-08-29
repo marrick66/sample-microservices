@@ -8,6 +8,10 @@ using static postprocessing.Integration.Configuration.QueueIntegrationConfigurat
 
 namespace postprocessing.Integration.Publishing
 {
+    /// <summary>
+    /// Implements publishing a message to a single exchange/routing key combination
+    /// via RabbitMQ.
+    /// </summary>
     public class AMQPEventPublisher : IEventPublisher, IDisposable
     {
         private OutgoingConfiguration _config;
@@ -60,11 +64,23 @@ namespace postprocessing.Integration.Publishing
         #endregion
 
         /// <summary>
-        /// Execute an asynchronous continuation of Serialize->Send->LogError for an event.
+        /// Execute an asynchronous continuation of Serialize->Send for an event.
         /// </summary>
         public Task PublishAsync(IEvent Event)
         {
-            return Task.Run(() => _converter.ToBytes(Event))
+            return Task.Run(
+                () =>
+                {
+                    try
+                    {
+                        return _converter.ToBytes(Event);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error converting {Event} to bytes.");
+                        throw;
+                    }
+                })
                 .ContinueWith(t => _model.BasicPublish(_config.Exchange, _config.Routing, null, t.Result), TaskContinuationOptions.NotOnFaulted);
         }
     }
